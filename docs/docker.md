@@ -7,11 +7,15 @@ and every dependency live in the image and in Docker volumes. The host needs onl
 docker compose up --build
 ```
 
-Open http://localhost:4747. If that port is taken on the host, pick another; the container uses the same number:
+Open http://localhost:4747. If that port is taken on the host, pick another range; the container uses the same
+numbers:
 
 ```bash
-ULTIMATE_PORT=4757 docker compose up --build
+ULTIMATE_PORTS=4757-4766 ULTIMATE_PORT=4757 docker compose up --build
 ```
+
+Machine-specific values such as these and `PROJECTS_DIR` belong in a `.env` next to `compose.yaml`, which compose
+reads on its own and Git ignores.
 
 ### What lives where
 
@@ -21,6 +25,9 @@ ULTIMATE_PORT=4757 docker compose up --build
   mount point. The container runs `pnpm install` on every start, so a lockfile change needs no rebuild.
 - **Logins, Ultimate's state (`~/.ultimate`, `~/.pi/agent`) and Git config** are in the `home` volume, at
   `/home/node`. They survive `docker compose down`; `docker compose down -v` deletes them.
+- **Your projects** are bind-mounted at `/projects` from the folder in `PROJECTS_DIR` (below); without it, `/projects`
+  is an empty volume.
+- **The projects' images and containers** are in the `dind` volume, the image store of the `dind` service.
 
 ### First steps inside the container
 
@@ -35,12 +42,51 @@ docker compose exec ultimate pnpm check
 
 `claude auth login` signs in the Claude Code provider; other providers log in from the UI as usual.
 
-### How the port works
+### How the ports work
 
-Ultimate binds only `127.0.0.1`, which a container keeps to itself. `docker/entrypoint.sh` runs `socat` on port 4748
-and forwards to Ultimate on `127.0.0.1:$ULTIMATE_PORT`; compose publishes 4748 on the host's `127.0.0.1` under the
-same `ULTIMATE_PORT`. Ultimate accepts only requests whose `Host` names its own loopback port, so the two numbers
-must match.
+Ultimate binds only `127.0.0.1`, which a container keeps to itself. For every port in `ULTIMATE_PORTS`,
+`docker/entrypoint.sh` runs `socat` on the container's own address and forwards to the same port on `127.0.0.1`;
+compose publishes the range on the host's `127.0.0.1` under the same numbers. Ultimate accepts only requests whose
+`Host` names its own loopback port, so the numbers must match. `ULTIMATE_PORT` must lie in the range.
+
+### Working on other projects
+
+Point `PROJECTS_DIR` at the host folder that holds your projects, in `.env`:
+
+```bash
+PROJECTS_DIR=/Users/you/code
+```
+
+Then `docker compose up -d` recreates the containers; `my-app` in that folder is `/projects/my-app` inside. Ultimate
+sees every project in the folder. Start an Ultimate for one of them on the next free port of the range:
+
+```bash
+docker compose exec -d -e ULTIMATE_PORT=4748 ultimate node /workspace/bin/ultimate.ts /projects/my-app
+```
+
+and open http://localhost:4748. It shares the logins of the first one; its state goes to its own home in the `home`
+volume.
+
+### Projects' own containers
+
+The `dind` service is a Docker daemon of its own for the projects' containers. The `ultimate` container reaches it with
+`DOCKER_HOST=tcp://dind:2375` and the Docker CLI with compose, so `docker compose up` in `/projects/my-app` runs that
+project's stack there. Both containers mount the projects at `/projects`, so a project's own bind mounts (`.:/app`)
+resolve to the same files.
+
+Ports the projects' containers publish in `PROJECT_PORTS` (default `3000-3099`) reach the host's `127.0.0.1` under the
+same numbers: a dev server on port 3000 opens at http://localhost:3000. From the `ultimate` container, and so from
+Ultimate's browser tools, it is http://dind:3000. A dev server that checks the `Host` header (Vite's `allowedHosts`)
+may need `dind` allowed.
+
+**The boundary.** `dind` runs rootless: its daemon and every container it starts run as an unprivileged user, so even
+a `--privileged` project container cannot reach the Docker host or its files beyond the mounted projects. The `dind`
+container itself needs `privileged: true` to make its user namespaces. Its API is reachable only on the compose
+network, never published.
+
+**Costs.** The image store is separate from the host's, so the first build of every project pulls and builds from
+scratch, and its images take disk in the Docker VM (a typical dev stack 1–3 GB, plus build cache). The daemon itself
+idles at around 100 MB of memory. `docker compose down -v` deletes the `dind` volume with everything in it.
 
 ### Not covered
 
@@ -48,3 +94,4 @@ must match.
   key to the `home` volume.
 - Tailscale remote access.
 - Git is built from source because Debian's is older than 2.54; the first build takes a few minutes.
+- Running Ultimate's bash inside a project's container: Ultimate's tools still run in the `ultimate` container.

@@ -6,5 +6,8 @@ dist/
 *.tsbuildinfo
 .vitest/
 .dev.vars
+# Docker settings of this machine (docs/docker.md).
+.env
+compose.override.yaml
 .wrangler/
 cloud/wrangler.deploy.json

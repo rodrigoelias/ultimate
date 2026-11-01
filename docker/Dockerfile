@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl libcurl4t64 libexpat1 openssh-client less ripgrep socat chromium fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=git /opt/git /opt/git
+# The Docker CLI with compose and buildx, for the projects' containers on the dind service (docs/docker.md).
+COPY --from=docker:29.9.2-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker:29.9.2-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
 # The checkout is a bind mount owned by the host user, which Git would otherwise refuse.
 RUN mkdir -p /opt/git/etc && /opt/git/bin/git config --system --add safe.directory '*'
 
@@ -29,6 +32,5 @@ WORKDIR /workspace
 # The pnpm store shares the node_modules volume, so pnpm can hard link and nothing lands in the checkout.
 ENV PATH=/opt/git/bin:$PATH ULTIMATE_CHROMIUM=/usr/bin/chromium ULTIMATE_NO_OPEN=1 \
     pnpm_config_store_dir=/workspace/node_modules/.pnpm-store pnpm_config_update_notifier=false
-EXPOSE 4748
 ENTRYPOINT ["ultimate-entrypoint"]
 CMD ["pnpm", "start"]

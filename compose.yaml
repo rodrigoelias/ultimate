@@ -7,20 +7,44 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     ports:
-      - '127.0.0.1:${ULTIMATE_PORT:-4747}:4748'
+      # One port per Ultimate process: this one on ULTIMATE_PORT, more for other projects (docs/docker.md).
+      - '127.0.0.1:${ULTIMATE_PORTS:-4747-4756}:${ULTIMATE_PORTS:-4747-4756}'
     volumes:
       - .:/workspace
       # Dependencies stay in the container, never in the host checkout.
       - node_modules:/workspace/node_modules
       # Logins, Ultimate state, Git config and the pnpm store.
       - home:/home/node
+      # The projects Ultimate works on, at the same path as in dind so their own bind mounts resolve.
+      - ${PROJECTS_DIR:-projects}:/projects
     environment:
       # Same number inside and outside, so Ultimate's loopback Host check passes.
       ULTIMATE_PORT: ${ULTIMATE_PORT:-4747}
+      ULTIMATE_PORTS: ${ULTIMATE_PORTS:-4747-4756}
+      DOCKER_HOST: tcp://dind:2375
+    depends_on:
+      - dind
     init: true
     tty: true
     stdin_open: true
 
+  # Docker for the projects' own containers. Rootless: its daemon and containers run as an unprivileged user, so a
+  # container started through it cannot reach the Docker host. Its API is reachable only on this compose network.
+  dind:
+    image: docker:29.9.2-dind-rootless
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ''
+    ports:
+      # Ports the projects' containers publish, on the same numbers on the host.
+      - '127.0.0.1:${PROJECT_PORTS:-3000-3099}:${PROJECT_PORTS:-3000-3099}'
+    volumes:
+      - dind:/home/rootless/.local/share/docker
+      - ${PROJECTS_DIR:-projects}:/projects
+
 volumes:
   node_modules:
   home:
+  dind:
+  # Used only while PROJECTS_DIR is unset.
+  projects:
