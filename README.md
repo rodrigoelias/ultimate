@@ -76,6 +76,8 @@ with the conversation, model and thinking controls, login, and footer, plus ever
 
 Needs Node 26, pnpm and Git 2.54 or newer.
 
+To keep all of this off your machine, run it in Docker instead: [docs/docker.md](docs/docker.md).
+
 You log in to a model provider on first start, not before. Ultimate shares `~/.pi/agent` with
 `pi` (credentials, models, settings); personal skills and instructions go in `~/.ultimate/skills/` and
 `~/.ultimate/AGENTS.md`. The
