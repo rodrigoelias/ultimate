@@ -19,6 +19,7 @@ it('uses a 600-second default tripwire and leaves explicit timeouts unchanged', 
     .mockRejectedValue(new Error('Command timed out after 600 seconds'))
   const wrapper = codingTools({
     emit: vi.fn<ExtensionHost['emit']>() as ExtensionHost['emit'],
+    want: () => undefined,
   }).wraps!.find((wrap) => 'tool' in wrap && wrap.tool === 'bash')!
   if (!('tool' in wrapper)) throw new Error('Missing bash wrapper')
   const bash = wrapper.wrap({ ...createBashTool(), execute })
@@ -68,6 +69,7 @@ it('reads an image past the 2000 px limit shrunk to fit, keeping its aspect rati
     await writeFile(join(dir, 'wide.png'), png(3000, 30))
     const read = codingTools({
       emit: vi.fn<ExtensionHost['emit']>() as ExtensionHost['emit'],
+      want: () => undefined,
     }).tools!.find((tool) => tool.name === 'read')!
     const api = {
       env: new NodeExecutionEnv({ cwd: dir }),

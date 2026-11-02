@@ -29,6 +29,7 @@ import { git } from '../../lib/git.ts'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { implementAction } from '../../lib/actions.ts'
 import { CancelAction, CancelledDoc, Committed } from './refs.ts'
+import { Shell } from './api.ts'
 
 /** Lets Pi's read tool shrink an image past the model's limits (2000x2000 by default) instead of refusing it. */
 const images = await createNodePhotonImages()
@@ -282,7 +283,9 @@ async function madeCommits(path: string, conversation: number) {
   return events
 }
 
-export default function codingTools(host: Pick<ExtensionHost, 'emit'>) {
+export default function codingTools(host: Pick<ExtensionHost, 'emit' | 'want'>) {
+  // Resolved at each call; declared here for the catalogue.
+  host.want(Shell)
   const shell = createBashTool()
   const parameters = Type.Object({
     ...shell.parameters.properties,
@@ -305,9 +308,15 @@ export default function codingTools(host: Pick<ExtensionHost, 'emit'>) {
           `An interruptible command must only wait, but this one changes things (${change}). Run the change in its own bash call, then wait in a separate interruptible one.`,
         )
       // One log per invocation: task ids repeat across projects and a retried call reruns its task.
-      const log = join(tmpdir(), `ultimate-commits-${randomUUID()}.log`)
+      let log = join(tmpdir(), `ultimate-commits-${randomUUID()}.log`)
       const call = createBashTool({
-        prepare: (execution) => prepareBash(execution, api, log),
+        prepare: async (execution) => {
+          prepareBash(execution, api, log)
+          const elsewhere = host.want(Shell)
+          if (!elsewhere) return
+          Object.assign(execution, await elsewhere.prepare(execution))
+          log = execution.env.ULTIMATE_COMMIT_LOG ?? log
+        },
       })
       const run = (command: Context) => call.execute(args, api, command)
       try {

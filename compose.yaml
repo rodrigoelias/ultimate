@@ -33,6 +33,8 @@ services:
   dind:
     image: docker:29.9.2-dind-rootless
     privileged: true
+    # Plain TCP, said explicitly so the daemon starts without its deprecation pause: the API stays on this network.
+    command: ['--tls=false']
     environment:
       DOCKER_TLS_CERTDIR: ''
     ports:

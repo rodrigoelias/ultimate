@@ -16,6 +16,9 @@ importers:
 
   .:
     dependencies:
+      '@devcontainers/cli':
+        specifier: 0.90.0
+        version: 0.90.0
       '@earendil-works/chord':
         specifier: 1.4.0
         version: 1.4.0(patch_hash=fdfa38e41e6b1b7d505e46b455f93d913c72b0cef63a5716a4a6a141f4e06416)
@@ -231,6 +234,11 @@ packages:
 
   '@blazediff/core@1.10.0':
     resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
+  '@devcontainers/cli@0.90.0':
+    resolution: {integrity: sha512-A4ceztBMlNzd1MUlQNel0dWxnkDlE83+WsgS4JOZfeBkbO0QUKEzBpd3UQ7Xqf7s0KzJaAj+Udnp4E8I3oqK3w==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
 
   '@earendil-works/chord@1.4.0':
     resolution: {integrity: sha512-dTbgyz4xgDS5KAUFx1bFENqj0Cr1N3tYxJJOYStc6g6HS78FSBZydyoCwLoddiQRF+VgRS0fpgAi+iKxjZ3BQA==}
@@ -1672,6 +1680,7 @@ packages:
   '@smithy/core@3.35.1':
     resolution: {integrity: sha512-i4YPS4B6ts7bjn7UwLnGjiZdprOvHvgGobFZsYK3GIY3E5hIqtj0rReU69BcTpGp+fvtraSNXeG1l+jtJvF55w==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
@@ -3599,6 +3608,8 @@ snapshots:
   '@babel/runtime@7.29.7': {}
 
   '@blazediff/core@1.10.0': {}
+
+  '@devcontainers/cli@0.90.0': {}
 
   '@earendil-works/chord@1.4.0(patch_hash=fdfa38e41e6b1b7d505e46b455f93d913c72b0cef63a5716a4a6a141f4e06416)':
     dependencies:

@@ -86,7 +86,21 @@ network, never published.
 
 **Costs.** The image store is separate from the host's, so the first build of every project pulls and builds from
 scratch, and its images take disk in the Docker VM (a typical dev stack 1–3 GB, plus build cache). The daemon itself
-idles at around 100 MB of memory. `docker compose down -v` deletes the `dind` volume with everything in it.
+idles at around 100 MB of memory. Rootless Docker here has no cgroup controllers, so `mem_limit`, `cpus` and
+`--memory` have no effect: a project's containers share the Docker VM's memory and CPUs with everything else. `docker
+compose down -v` deletes the `dind` volume with everything in it.
+
+**Ultimate's bash in a project's container.** With the optional `containers` extension on, bash calls in a project
+with a `.devcontainer/devcontainer.json` run inside its dev container; see
+[extensions/containers](../extensions/containers/README.md). Put that project's worktrees under `/projects` too, so
+the container can mount them at the same path, in its `.ultimate/settings.json`:
+
+```json
+{
+  "extensions": { "enable": ["containers"] },
+  "isolates": { "worktree": { "path": "/projects/.ultimate-worktrees/my-app/{name}" } }
+}
+```
 
 ### Not covered
 
@@ -94,4 +108,3 @@ idles at around 100 MB of memory. `docker compose down -v` deletes the `dind` vo
   key to the `home` volume.
 - Tailscale remote access.
 - Git is built from source because Debian's is older than 2.54; the first build takes a few minutes.
-- Running Ultimate's bash inside a project's container: Ultimate's tools still run in the `ultimate` container.

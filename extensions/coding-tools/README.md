@@ -30,4 +30,9 @@ calls no longer running, and a cancel of a call that is not running fails.
 Pi's `prepare` hook only changes the command, cwd, and environment, not the timeout, so one wrapper injects the
 default and formats execution timeout errors.
 
+After the commit hooks are in place, each call asks the `coding-tools.shell` extension point (`api.ts`) where it runs:
+its provider returns the execution to run, such as a command that runs it in the project's container
+([containers](../containers/README.md)), and can move the hooks' log to a path that command writes
+(`ULTIMATE_COMMIT_LOG`). Without a provider bash runs here, as before.
+
 `server.ts` installs Pi Durable's read, write, edit, and bash tools (named `coding-tools`, like this folder). `web.tsx` registers one renderer per tool name under `tools`; `diff.tsx` turns the edit tool's `details.patch` (or Pi's display `details.diff`) into rows.
