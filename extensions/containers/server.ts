@@ -162,10 +162,13 @@ async function gitHint(container: Container) {
 
 type State = {
   starting?: Promise<Container>
-  error?: string
+  /** Why the last start failed, and the devcontainer.json it failed with (its modification time). */
+  error?: { text: string; config: number }
+  /** The project's git identity, read once: commits inside are made as here. */
+  identity?: Promise<[string, string][]>
   /** The git hint of the container `id` (checked once per container). */
   hint?: { id: string; text?: string }
-  prepare(execution: BashExecution): Promise<BashExecution>
+  prepare(execution: BashExecution, signal?: AbortSignal): Promise<BashExecution>
   status(): Promise<Status>
   start(): Promise<Status>
   stop(): Promise<Status>
@@ -205,8 +208,19 @@ export default function containers(host: ExtensionHost) {
     return container
   }
 
-  /** The running container, started first when it is not. One start at a time. */
-  async function running() {
+  const configTime = () =>
+    statSync(configPath(root) ?? root, { throwIfNoEntry: false })?.mtimeMs ?? 0
+  const failed = (text: string) =>
+    new Error(
+      `The project's dev container could not start. Fix it, then press Start in the status line's container item, or edit devcontainer.json. ${text}`,
+    )
+
+  /**
+   * The running container, started first when it is not. One start at a time, shared by every call; a call's `signal`
+   * stops its wait, not the start. After a failed start calls fail at once, until Start or a changed devcontainer.json.
+   */
+  async function running(signal?: AbortSignal) {
+    if (self.error?.config === configTime() && !self.starting) throw failed(self.error.text)
     const container = self.starting ? undefined : await find(root)
     if (container?.running) return container
     self.starting ??= up()
@@ -215,13 +229,20 @@ export default function containers(host: ExtensionHost) {
         return started
       })
       .catch((error: unknown) => {
-        self.error = failure(error)
-        throw new Error(`The project's dev container could not start: ${self.error}`, {
-          cause: error,
-        })
+        self.error = { text: failure(error), config: configTime() }
+        throw failed(self.error.text)
       })
       .finally(() => (self.starting = undefined))
-    return self.starting
+    if (!signal) return self.starting
+    signal.throwIfAborted()
+    const { promise: aborted, reject } = Promise.withResolvers<never>()
+    const abort = () => reject(signal.reason)
+    signal.addEventListener('abort', abort, { once: true })
+    try {
+      return await Promise.race([self.starting, aborted])
+    } finally {
+      signal.removeEventListener('abort', abort)
+    }
   }
 
   async function hintFor(container: Container) {
@@ -231,13 +252,13 @@ export default function containers(host: ExtensionHost) {
   }
 
   const self: State = {
-    async prepare(execution) {
+    async prepare(execution, signal) {
       if (!configPath(root)) return execution
       // Only the project and its worktrees start the container; a call elsewhere (/tmp) runs here.
       const worktrees = worktreesFolder(await host.projectSettings())
       const shared = [root, ...(worktrees ? [worktrees] : [])]
       if (!shared.some((folder) => inside(folder, execution.cwd))) return execution
-      const container = await running()
+      const container = await running(signal)
       // Ultimate's own checkout and anything else the container does not share runs here, as without containers.
       if (!container.mounts.some((mount) => inside(mount, execution.cwd))) return execution
       const env = { ...execution.env }
@@ -256,12 +277,15 @@ export default function containers(host: ExtensionHost) {
       for (let index = 0; index < Number(process.env.GIT_CONFIG_COUNT ?? 0); index++)
         for (const part of ['KEY', 'VALUE'])
           env[`GIT_CONFIG_${part}_${index}`] ??= process.env[`GIT_CONFIG_${part}_${index}`] ?? ''
-      const config: [string, string][] = [['safe.directory', '*']]
-      for (const key of ['user.name', 'user.email']) {
-        const value = await git(root, 'config', key).catch(() => '')
-        if (value) config.push([key, value])
-      }
-      for (const [key, value] of config) {
+      self.identity ??= Promise.all(
+        ['user.name', 'user.email'].map(async (key): Promise<[string, string]> => [
+          key,
+          // Unset is fine: the container's own identity, if any, applies.
+          await git(root, 'config', key).catch(() => ''),
+        ]),
+      )
+      const identity = (await self.identity).filter(([, value]) => value)
+      for (const [key, value] of [['safe.directory', '*'], ...identity]) {
         env[`GIT_CONFIG_KEY_${count}`] = key
         env[`GIT_CONFIG_VALUE_${count++}`] = value
       }
@@ -280,7 +304,7 @@ export default function containers(host: ExtensionHost) {
         const container = await find(root)
         if (!container?.running)
           return self.error
-            ? { state: 'error', config, ports: [], hint: self.error }
+            ? { state: 'error', config, ports: [], hint: self.error.text }
             : { state: 'stopped', config, ports: [] }
         return {
           state: 'running',
@@ -295,8 +319,10 @@ export default function containers(host: ExtensionHost) {
     },
     async start() {
       if (!configPath(root)) throw new Error('This project has no .devcontainer/devcontainer.json')
-      // A failed start shows in the status it returns.
-      await running().catch(() => undefined)
+      // Start tries again after a failure. A new failure is ignored here: it is kept in self.error, and the status this
+      // returns shows it.
+      self.error = undefined
+      await running().catch(() => self.error)
       return self.status()
     },
     async stop() {
@@ -310,7 +336,7 @@ export default function containers(host: ExtensionHost) {
     },
   }
   states.set(host, self)
-  host.implement(Shell, { prepare: (execution) => self.prepare(execution) })
+  host.implement(Shell, { prepare: (execution, signal) => self.prepare(execution, signal) })
 
   const dockerHost = /^tcp:\/\/([^:/]+)/.exec(process.env.DOCKER_HOST ?? '')?.[1] ?? 'localhost'
   return defineExtension({

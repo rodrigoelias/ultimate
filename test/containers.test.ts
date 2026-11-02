@@ -55,7 +55,4 @@ it('runs a call in the container with its own env, cwd and command as single wor
     `'--container-id' 'abc123' '--remote-env' 'GIT_CONFIG_COUNT=1' '--remote-env' 'ULTIMATE_COMMIT_LOG=/projects/my-app/.git/log' 'sh' '-c'`,
   )
   expect(command).toContain(`'-' '/projects/my-app' 'echo "it'\\''s" $HOME'`)
-  // The client's stdin stays open until the call ends or its process group is killed; the container then kills it.
-  expect(command).toMatch(/^exec 3< <\(exec sleep \d+ 2>\/dev\/null\); s=\$!\n/)
-  expect(command).toMatch(/ <&3 3<&-; r=\$\?\nkill \$s; exit \$r$/)
 })

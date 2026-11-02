@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, LoaderCircleIcon, PlayIcon, SquareIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { api, cn, defineWebExtension, errorMessage, events, useAction, useEvent } from '@/sdk'
@@ -122,6 +122,12 @@ function Indicator() {
   const status = useAction(StatusAction, null, { onError: () => {} })
   const [open, setOpen] = useState(false)
   useEvent('containers:open', () => setOpen(true))
+  // A bash call starts the container and a start can fail: the dot follows within seconds (a few docker reads each).
+  const { refetch } = status
+  useEffect(() => {
+    const timer = setInterval(() => void refetch(), 5000)
+    return () => clearInterval(timer)
+  }, [refetch])
   const data = status.data
   if (!data || data.state === 'none') return null
   return (

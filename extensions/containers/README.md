@@ -18,7 +18,13 @@ service of Ultimate's own `compose.yaml` ([docs/docker.md](../../docs/docker.md#
 devcontainer.json must mount the project at its own path (`workspaceFolder: "${localWorkspaceFolder}"` and a bind
 mount `source=${localWorkspaceFolder},target=${localWorkspaceFolder}`), so a bash call's working directory names the
 same files inside. The folder `isolates.worktree.path` puts checkouts in is mounted at its own path too, so branches'
-bash runs in the same container. A `~/` path is not mounted, and bash there runs locally.
+bash runs in the same container. A `~/` path is not mounted, and bash there runs locally. The mount is the template's
+parent folder: give each project a folder of its own (`…/my-app/{name}`, not `…/trees/my-app-{name}`), or other
+projects' checkouts in it are mounted too. A container created before the setting needs a Stop and Start (or a
+rebuild) to get the mount; until then bash in worktrees runs locally.
+
+The container's user must be able to write the project and its `.git`, or commits made inside are not recorded:
+with rootless Docker, a `remoteUser` other than root maps to a uid that does not own the files.
 
 ## How bash runs
 
@@ -26,7 +32,9 @@ coding-tools asks the `coding-tools.shell` extension point (`extensions/coding-t
 runs; this extension provides it. A call whose working directory is in the project or its worktrees folder:
 
 1. Starts the container on first use (`devcontainer up`, reused afterwards; a first build can take minutes), with the
-   worktrees folder as an extra mount.
+   worktrees folder as an extra mount. A cancel or steering message stops the call's wait, not the start; the call's timeout counts from when its command runs. After a failed start,
+   bash in the project fails at once with the reason (it does not fall back to running here), until Start is pressed
+   or devcontainer.json changes.
 2. Runs through `devcontainer exec --container-id … sh -c …` in the same folder, with the container's own environment
    plus the call's commit hooks (`GIT_CONFIG_*`), `safe.directory=*` and the project's `user.name`/`user.email`. The
    hooks' log goes to a file in the project's `.git`, which both sides see, so commits made inside are recorded like

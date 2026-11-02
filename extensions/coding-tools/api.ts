@@ -12,9 +12,10 @@ export type ShellService = {
   /**
    * Where bash call `execution` runs: the same execution to run it here, or one with a new command, cwd or environment,
    * such as a command that runs it inside a container. Its environment already carries the commit hooks; a returned
-   * `ULTIMATE_COMMIT_LOG` moves their log to a path the command can write, and the call reads it from there.
+   * `ULTIMATE_COMMIT_LOG` moves their log to a path the command can write, and the call reads it from there. `signal`
+   * aborts when the call is cancelled or interrupted: stop waiting then.
    */
-  prepare(execution: BashExecution): Promise<BashExecution>
+  prepare(execution: BashExecution, signal?: AbortSignal): Promise<BashExecution>
 }
 /** The extension point bash calls run through; the optional containers extension provides it. */
 export const Shell = defineApi<ShellService>()('coding-tools.shell')

@@ -310,11 +310,11 @@ export default function codingTools(host: Pick<ExtensionHost, 'emit' | 'want'>) 
       // One log per invocation: task ids repeat across projects and a retried call reruns its task.
       let log = join(tmpdir(), `ultimate-commits-${randomUUID()}.log`)
       const call = createBashTool({
-        prepare: async (execution) => {
+        prepare: async (execution, _api, preparing) => {
           prepareBash(execution, api, log)
           const elsewhere = host.want(Shell)
           if (!elsewhere) return
-          Object.assign(execution, await elsewhere.prepare(execution))
+          Object.assign(execution, await elsewhere.prepare(execution, preparing.abortSignal))
           log = execution.env.ULTIMATE_COMMIT_LOG ?? log
         },
       })
